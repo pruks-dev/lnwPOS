@@ -298,7 +298,7 @@ npm run build  # Validates TypeScript types
 
 ## Roadmap
 
-### ✅ Complete
+### ✅ Complete (Phase 1)
 - [x] LocalStorage layer (products, transactions, users, settings)
 - [x] Client-side authentication with cookie tokens
 - [x] POS with cart and multi-item support
@@ -308,12 +308,21 @@ npm run build  # Validates TypeScript types
 - [x] Dark/Light theme toggle
 - [x] Responsive design (mobile + desktop)
 
-### 🚧 In Progress
-- [ ] Enhanced product management (bulk operations)
+### 🚀 Future (Phase 2) - Enhanced Features
+- [ ] Lightning integration (LNURL + OpenPleb API)
 - [ ] Receipt generation (print/export)
 - [ ] Inventory alerts (low stock notifications)
 - [ ] Data backup and export features
 - [ ] Multiple currency support
+
+### 🚀 Future (Phase 3) - Advanced Features
+- [ ] Advanced cart management (quantities, modifiers, discounts)
+- [ ] Receipt generation (print/export PDF/QR)
+- [ ] Inventory alerts (low stock notifications)
+- [ ] Data backup and export (JSON/CSV)
+- [ ] Multi-device sync
+- [ ] User management system
+- [ ] POS hardware support (thermal printer)
 
 ## Contributing
 
