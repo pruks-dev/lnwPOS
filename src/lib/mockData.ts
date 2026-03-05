@@ -14,7 +14,7 @@ export const mockProducts: Product[] = [
   {
     id: '00001', // Pre-seeded first ID
     // Will be updated on init
-    name: 'กาแฟ',
+    name: 'Coffee',
     price: 45,
     category: 'coffee',
     stock: 100,
@@ -22,7 +22,7 @@ export const mockProducts: Product[] = [
   },
   {
     id: '00002',
-    name: 'ลาเต้',
+    name: 'Latte',
     price: 50,
     category: 'coffee',
     stock: 100,
@@ -30,7 +30,7 @@ export const mockProducts: Product[] = [
   },
   {
     id: '00003',
-    name: 'มอคค่า',
+    name: 'Mocha',
     price: 55,
     category: 'coffee',
     stock: 100,
@@ -38,7 +38,7 @@ export const mockProducts: Product[] = [
   },
   {
     id: '00004',
-    name: 'เอสเปรสโซ',
+    name: 'Espresso',
     price: 40,
     category: 'coffee',
     stock: 100,
@@ -46,7 +46,7 @@ export const mockProducts: Product[] = [
   },
   {
     id: '00005',
-    name: 'นม',
+    name: 'Milk',
     price: 20,
     category: 'other',
     stock: 50,
@@ -93,7 +93,7 @@ function createMockTransaction(
 
 export const mockTransactions: Transaction[] = [
   createMockTransaction(
-    ['กาแฟ', 'ลาเต้'],
+    ['Coffee', 'Latte'],
     [45, 50],
     [2, 1],
     'cashu',
@@ -101,7 +101,7 @@ export const mockTransactions: Transaction[] = [
     0.5
   ),
   createMockTransaction(
-    ['มอคค่า', 'นม'],
+    ['Mocha', 'Milk'],
     [55, 20],
     [1, 2],
     'lnurl',
@@ -109,7 +109,7 @@ export const mockTransactions: Transaction[] = [
     1.5
   ),
   createMockTransaction(
-    ['เอสเปรสโซ'],
+    ['Espresso'],
     [40],
     [3],
     'cashu',
@@ -117,7 +117,7 @@ export const mockTransactions: Transaction[] = [
     2
   ),
   createMockTransaction(
-    ['กาแฟ', 'มอคค่า'],
+    ['Coffee', 'Mocha'],
     [45, 55],
     [1, 1],
     'lnurl',
@@ -125,7 +125,7 @@ export const mockTransactions: Transaction[] = [
     3
   ),
   createMockTransaction(
-    ['ลาเต้', 'นม'],
+    ['Latte', 'Milk'],
     [50, 20],
     [2, 1],
     'cashu',
@@ -133,7 +133,7 @@ export const mockTransactions: Transaction[] = [
     4
   ),
   createMockTransaction(
-    ['กาแฟ'],
+    ['Coffee'],
     [45],
     [1],
     'lnurl',
@@ -141,7 +141,7 @@ export const mockTransactions: Transaction[] = [
     5
   ),
   createMockTransaction(
-    ['มอคค่า', 'เอสเปรสโซ'],
+    ['Mocha', 'Espresso'],
     [55, 40],
     [1, 1],
     'cashu',
@@ -149,7 +149,7 @@ export const mockTransactions: Transaction[] = [
     6
   ),
   createMockTransaction(
-    ['นม'],
+    ['Milk'],
     [20],
     [4],
     'lnurl',

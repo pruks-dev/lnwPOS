@@ -1,6 +1,6 @@
 # ⚡ LnwPoS - Bitcoin Lightning Point of Sale
 
-A secure, offline-capable Point of Sale system built with Next.js, Svelte 5, and LocalStorage. Perfect for small businesses accepting Bitcoin payments via Lightning Network.
+A secure, Point of Sale system built with SvelteKit, Svelte 5, and LocalStorage. Perfect for small businesses accepting Bitcoin payments via Lightning Network.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue.svg)
@@ -8,90 +8,125 @@ A secure, offline-capable Point of Sale system built with Next.js, Svelte 5, and
 
 ## Features
 
+### 🔐 Authentication
+- Secure client-side authentication with LocalStorage
+- Cookie-based token storage (24-hour expiry)
+- SSR-compatible route protection
+- Session management and auto-expiry
+- Default credentials: `user` / `password`
+
+### 📊 Dashboard
+- Today's sales overview with totals
+- Transaction statistics and charts
+- Recent transaction history feed
+- Bitcoin exchange rate display (configurable)
+- Pending transaction tracking
+- Sales by payment method breakdown
+
 ### 🛒 Point of Sale
-- Add products to cart
-- Multiple payment methods (Cash, PromptPay, Lightning)
+- Add products to cart with one click
+- Multiple payment methods (Cash, PromptPay, Lightning, LNURL, Cashu)
 - Real-time cart total calculation
 - Quick checkout with invoice generation
+- Multi-line items support for complex orders
 
 ### 📦 Product Management
 - Create, edit, and delete products
-- Stock management
+- Stock management (on/off toggle)
 - Sequential product IDs (00001, 00002, ...)
 - Product categories with emoji icons
-
-### 📊 Dashboard
-- Today's sales overview
-- Transaction statistics
-- Recent transaction history
-- Bitcoin exchange rate display
+- Custom product images
+- Category-based product organization
 
 ### 📋 Transaction History
-- View all transactions
+- View all transactions with full details
 - Filter by payment method (Cash, PromptPay, Lightning, LNURL, Cashu)
 - Filter by status (Success, Pending, Failed)
 - Transaction details with timestamps
-
-### 🔐 Authentication
-- Secure client-side authentication
-- JWT token with cookie storage (24-hour expiry)
-- SSR-compatible protected routes
-- Default credentials: `user` / `password`
+- Invoice and memo details for Lightning payments
+- Search and filter functionality
 
 ### 🎨 User Interface
 - Fully responsive design (mobile + desktop)
 - Dark/Light theme toggle
 - English localization
 - Modern, clean UI with Tailwind CSS
+- Smooth animations and transitions
+- Intuitive navigation
 
 ## Tech Stack
 
 | Technology | Version |
 |------------|---------|
-| Next.js | 14.x |
-| React | 18.x |
+| SvelteKit | 2.x |
+| Svelte | 5.x |
 | TypeScript | 5.x |
-| Svelte 5 | 5.x |
-| Svelte Stores | 5.x |
 | Tailwind CSS | 3.x |
-| Vite | 5.x |
+| Vite | 7.x |
+| LocalStorage API | Native |
 
-## Local Storage Data
+## Architecture
 
-### Products
+### Storage Layer
+All data is persisted in the browser's LocalStorage, making the application:
+- **Offline-capable** - Works without internet once loaded
+- **Privacy-focused** - No backend database required
+- **Fast** - Instant load and data access
+- **No server maintenance** - No database to manage
+
+### Data Types
+
+#### Products
 ```typescript
 {
   id: string        // Sequential: 00001, 00002, ...
   name: string
   price: number
   category: string
-  stock: number
+  image?: string
+  stock: number     // 1 = in stock, 0 = out of stock
   createdAt: string
 }
 ```
 
-### Transactions
+#### Transactions
 ```typescript
 {
   id: string
   items: TransactionItem[]
   total: number
-  paymentMethod: 'cash' | 'promptpay' | 'lnurl' | 'cashu'
+  paymentMethod: 'cash' | 'promptpay' | 'lnurl' | 'cashu' | 'lightning'
   status: 'paid' | 'pending' | 'failed'
-  invoice: string | undefined
-  memo: string
-  paidAt: string | undefined
+  invoice?: string  // Lightning invoice
+  memo?: string     // Payment memo
+  paidAt?: string
   createdAt: string
 }
 ```
 
-### Authentication
+#### Settings
+```typescript
+{
+  lightningAddress?: string  // Your lightning@address
+  openPlebApiKey?: string    // For Bitcoin price updates
+  cashuMint?: string         // Cashu mint URL
+  currency?: 'sat' | 'btc'   // Price display currency
+  taxRate?: number           // Tax percentage (optional)
+}
+```
+
+#### Authentication
 ```typescript
 // Cookie: lnwpos_user
-username: string
+{
+  id: string
+  email: string
+  passwordHash: string
+  createdAt: string
+}
 
 // Cookie: lnwpos_token
-value: "username.expiration"  // 24-hour expiry
+value: "username.timestamp"  // 24-hour expiry
 ```
 
 ## Installation
@@ -126,17 +161,18 @@ value: "username.expiration"  // 24-hour expiry
    - Password: `password`
 
 2. (Optional) Add products via Products page
-
-3. (Optional) Click "Load Mockup Data" in Settings to initialize sample data
+   - Click "Add Product" to create new products
+   - Configure categories and pricing
+   - Set stock availability
 
 ### Making a Sale
 
 1. Navigate to **POS** page
-2. Click products to add to cart
-3. Select payment method (Cash/PromptPay/Lightning)
+2. Click products to add to cart (supports multiple quantities)
+3. Select payment method (Cash/PromptPay/Lightning/LNURL/Cashu)
 4. Click "Checkout" button
 5. Confirm payment
-6. Transaction is saved to localStorage
+6. Transaction is saved to LocalStorage immediately
 
 ### Managing Products
 
@@ -145,33 +181,40 @@ value: "username.expiration"  // 24-hour expiry
 3. Click product to toggle stock status (on/off)
 4. Click edit icon to modify product details
 5. Click delete icon to remove product
+6. Product ID auto-generates sequentially
 
 ### Viewing Transactions
 
 1. Navigate to **Transactions** page
-2. Filter by payment method
-3. Filter by status
-4. View transaction details
+2. Filter by payment method (Cash, PromptPay, Lightning, LNURL, Cashu)
+3. Filter by status (Paid, Pending, Failed)
+4. View transaction details with items, totals, and timestamps
 
-## Authentication
+### Configuring Settings
 
-The application uses client-side authentication with SSR protection:
+1. Navigate to **Settings** page
+2. Configure Lightning address for price updates
+3. Set Cashu mint URL for Cashu payments
+4. Choose currency (satoshi or BTC)
+5. Optionally configure tax rate
 
-- **Login**: `/api/auth/login`
-- **Logout**: `/api/auth/logout`
-- **Token Storage**: Cookies (not localStorage)
+## Authentication System
+
+The application uses a secure client-side authentication system with SSR protection:
+
+### How It Works
+- **Login**: POST to `/api/auth/login`
+- **Logout**: POST to `/api/auth/logout`
+- **Token Storage**: Cookies (not LocalStorage) - SSR-safe
 - **Token Format**: `username.timestamp`
-- **Default User**: `user` / `password`
+- **Expiration**: 24 hours (configurable)
+- **Password Hashing**: Simple hash function (TODO: upgrade to bcrypt/argon2)
 
-### Creating Additional Users
-
-Add users in `src/lib/storage.ts`:
-```typescript
-const USERS = [
-  { email: 'admin', password: hash('admin123') },
-  // ... more users
-]
-```
+### Session Management
+- Token automatically expires after 24 hours
+- User is logged out after token expiration
+- Session persists across page refreshes within token validity
+- SSR-safe route protection prevents unauthorized access
 
 ## Payment Methods
 
@@ -179,6 +222,7 @@ const USERS = [
 - Accept cash payments directly
 - No verification needed
 - Status: `paid`
+- Simple and instant
 
 ### PromptPay
 - QR code for customer payment
@@ -186,27 +230,24 @@ const USERS = [
 - Status: `paid`
 
 ### Lightning (LNURL/Cashu)
-- Generate Lightning invoice
-- QR code scanning
+- Generate Lightning invoice or LNURL
+- QR code scanning for payment
 - Supports:
-  - **LNURL**: Lightning Network URL
-  - **Cashu**: Decentralized micro-credentials
+  - **LNURL**: Lightning Network URL for payments
+  - **Cashu**: Decentralized micro-credentials (unspent tokens)
 - Status: `paid` | `pending` | `failed`
+- Displays Bitcoin price in satoshi/BTC
+- Real-time price updates (via OpenPleb API)
 
-## Environment Variables
+## Data Persistence
 
-Create `.env.local` for production configuration:
-
-```env
-# Database (if needed for future expansion)
-DATABASE_URL=
-
-# Bitcoin API
-NEXT_PUBLIC_BITCOIN_RATE=3450
-
-# Notification settings
-NEXT_PUBLIC_ENABLE_NOTIFICATIONS=true
-```
+### LocalStorage Keys
+- `lnwpos_products` - All products data
+- `lnwpos_transactions` - All transactions data
+- `lnwpos_settings` - Application settings
+- `lnwpos_user` - Current user session
+- `lnwpos_token` - Authentication token
+- `lnwpos_next_id` - Next sequential product ID
 
 ## Browser Compatibility
 
@@ -214,6 +255,7 @@ NEXT_PUBLIC_ENABLE_NOTIFICATIONS=true
 - ✅ Firefox (latest)
 - ✅ Safari (latest)
 - ✅ Mobile browsers (iOS Safari, Chrome Mobile)
+- ✅ Desktop browsers (Chrome, Firefox, Safari, Edge)
 
 **Note**: LocalStorage-based storage requires JavaScript to be enabled.
 
@@ -223,53 +265,59 @@ NEXT_PUBLIC_ENABLE_NOTIFICATIONS=true
 
 ```bash
 npm run build
-npm start
+npm run preview
 ```
 
 ### TypeScript Compilation
 
 ```bash
-npm run build  # Validates TypeScript
+npm run build  # Validates TypeScript types
 ```
+
+### Development Tips
+- Use `npm run dev` for hot reload development
+- `npm run check` validates Svelte components
+- Data persists in browser during development
 
 ## Security Considerations
 
-⚠️ **Important:**
-- This is a client-side application using LocalStorage
-- Not suitable for high-security environments
-- Consider backend integration for:
-  - Persistent storage
-  - User management
-  - Multi-device sync
-  - Audit logs
+⚠️ **Important Notes:**
+
+### Current Limitations
+- **Client-side only** - No server-side validation
+- **LocalStorage** - Susceptible to browser extensions attacks
+- **Password hashing** - Simple hash 
+- **No CSRF protection** - CSRF tokens not implemented
+- **No rate limiting** - No API rate limiting
+
+### Suitable For
+- ✅ Small businesses and sole proprietorships
+- ✅ Testing and prototyping
+- ✅ Teaching and learning
+
 
 ## Roadmap
 
-### Phase 1: ✅ Complete
-- [x] LocalStorage layer
-- [x] Client-side authentication
-- [x] POS with cart
-- [x] Product management
-- [x] Transaction history
+### ✅ Complete
+- [x] LocalStorage layer (products, transactions, users, settings)
+- [x] Client-side authentication with cookie tokens
+- [x] POS with cart and multi-item support
+- [x] Product management (CRUD operations)
+- [x] Transaction history with filters
 - [x] Dashboard with analytics
-- [x] Mock data initialization
-- [x] English localization
+- [x] Dark/Light theme toggle
+- [x] Responsive design (mobile + desktop)
 
-### Phase 2: ⏳ Planned
-- [ ] Backend API integration
-- [ ] Real database (PostgreSQL/SQLite)
-- [ ] Multi-device sync
-- [ ] User management system
-- [ ] Receipt generation
-- [ ] Inventory alerts
-- [ ] Multiple shop management
+### 🚧 In Progress
+- [ ] Enhanced product management (bulk operations)
+- [ ] Receipt generation (print/export)
+- [ ] Inventory alerts (low stock notifications)
+- [ ] Data backup and export features
+- [ ] Multiple currency support
 
-### Phase 3: 🚀 Future
-- [ ] Online payments integration (Coinbase, Binance)
-- [ ] Real-time analytics dashboard
-- [ ] Export transactions (CSV, PDF)
-- [ ] Mobile app (React Native)
-- [ ] POS hardware support (thermal printer)
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
@@ -278,9 +326,10 @@ MIT License - Feel free to use this project for personal or commercial purposes.
 ## Credits
 
 Built with ❤️ using:
-- [Next.js](https://nextjs.org/)
-- [Svelte 5](https://svelte.dev/)
+- [SvelteKit](https://kit.svelte.dev/)
+- [Svelte](https://svelte.dev/)
 - [Tailwind CSS](https://tailwindcss.com/)
+- [TypeScript](https://www.typescriptlang.org/)
 
 ---
 
