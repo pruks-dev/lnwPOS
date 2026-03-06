@@ -1,12 +1,18 @@
 # ⚡ LnwPoS - Bitcoin Lightning Point of Sale
 
-A secure, Point of Sale system built with SvelteKit, Svelte 5, and LocalStorage. Perfect for small businesses accepting Bitcoin payments via Lightning Network.
+A Point of Sale system built with SvelteKit, Svelte 5, and LocalStorage. Suitable for small businesses accepting both Fiat and Bitcoin payments via Lightning Network with OpenPleb integration. Enables merchants to receive fiat payments for Bitcoin transactions via peer-to-peer matching offers.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue.svg)
 ![Svelte](https://img.shields.io/badge/Svelte-5-orange.svg)
 
 ## Features
+
+### OpenPleb Integration
+- **Bitcoin Payments for Fiat** - Customers can pay with Bitcoin, and the merchant receives fiat when a taker who want to earn Bitcoin accepts the offer
+- **Fiat on-chain Transfer** - Merchant receives fiat directly when taker accepts the offer
+- **Cashu Bond Time-Lock Protection** - Merchant protected with NUT-11 time-locked bonds
+- **Automatic Bitcoin Conversion** - Convert bonds back to BTC if no taker arrives
 
 ### 🔐 Authentication
 - Secure client-side authentication with LocalStorage
@@ -218,6 +224,14 @@ The application uses a secure client-side authentication system with SSR protect
 
 ## Payment Methods
 
+### 💳 Lightning + OpenPleb (Main Feature)
+- **LNURL Support** - Lightning Network URL for payments
+- **Cashu Integration** - Decentralized micro-credentials (unspent tokens)
+- **Accept Bitcoin for Fiat** - Customer pays with Bitcoin, merchant receives fiat when taker accepts the offer
+- **Cashu Bond Protection** - NUT-11 time-locked bonds protect merchants
+- **Real-Time Pricing** - Automatic Bitcoin price updates via OpenPleb API
+- **Status Tracking** - Support for `paid`, `pending`, `failed` states
+
 ### Cash
 - Accept cash payments directly
 - No verification needed
@@ -228,16 +242,6 @@ The application uses a secure client-side authentication system with SSR protect
 - QR code for customer payment
 - Shop PromptPay ID configured in Settings
 - Status: `paid`
-
-### Lightning (LNURL/Cashu)
-- Generate Lightning invoice or LNURL
-- QR code scanning for payment
-- Supports:
-  - **LNURL**: Lightning Network URL for payments
-  - **Cashu**: Decentralized micro-credentials (unspent tokens)
-- Status: `paid` | `pending` | `failed`
-- Displays Bitcoin price in satoshi/BTC
-- Real-time price updates (via OpenPleb API)
 
 ## Data Persistence
 
@@ -325,6 +329,114 @@ npm run build  # Validates TypeScript types
 - [ ] POS hardware support (thermal printer)
 
 ## Contributing
+
+### OpenPleb Integration
+
+LnwPoS integrates with OpenPleb to facilitate instant fiat-on-ramp transactions via Lightning Network. This allows customers to pay with Bitcoin while the merchant receives fiat directly.
+
+### How It Works
+
+The integration follows a peer-to-peer matching offer flow:
+
+```
+1. Order & Request Offer
+   ┌─────────────────┐
+   │ POS requests    │  → OpenPleb: Create offer (bitcoin + fiat price)
+   │ offer with      │
+   │ bitcoin amount  │  → Return LN invoice for payment
+   │ + fiat price    │
+   └────────┬────────┘
+            │
+            ▼
+2. Display QR Code
+   ┌─────────────────┐
+   │ Show LN invoice │  → Customer scans & pays with Lightning
+   │ QR code         │
+   └────────┬────────┘
+            │
+            ▼
+3. Payment Confirmed + Bond Assigned
+   ┌─────────────────┐
+   │ OpenPleb        │  → Offer confirmed, bond assigned
+   │ creates offer   │
+   │ + sends bond    │
+   └────────┬────────┘
+            │
+            ▼
+4. Two Possible Outcomes
+            │
+            ├────────────────┐
+            ▼                ▼            
+   ┌────────────────┐ ┌─────────────┐ 
+   │ Case A: No     │ │ Case B:     │ 
+   │ Taker          │ │ Taker       │ 
+   │                │ │ Arrives     │ 
+   │ Timeout        │ │             │ 
+   │ 7 days         │ │ Taker       │ 
+   │                │ │ pays fiat   │ 
+   └──────┬─────────┘ └──────┬──────┘ 
+          │                  │
+          ▼                  ▼
+   ┌────────────────┐ ┌─────────────┐
+   │ POS redeems    │ │ Bond        │
+   │ bond token     │ │ rejected    │
+   │ to get BTC     │ │ in list     │
+   │ (time locked   │ │ (cannot     │
+   │ NUT-11)        │ │ redeem)     │
+   └────────────────┘ └─────────────┘
+```
+
+### Flow Details
+
+**Step 1: Request Offer**
+- POS generates order with `bitcoin_amount` and `fiat_price`
+- OpenPleb creates a sell order (maker) and returns:
+  - Lightning Network invoice for the bitcoin amount
+  - Cashu bond token (p2pk time-locked, NUT-11)
+
+**Step 2: Payment**
+- Customer scans QR code and pays via Lightning Network
+- Payment is confirmed on the Lightning Network
+
+**Step 3: Offer Confirmed**
+- OpenPleb confirms the offer and declares it as "completed"
+- POS status updates to `pending` (waiting for taker)
+- OpenPleb assigns a Cashu bond token to the POS
+
+**Step 4a: No Taker (Timeout)**
+- If no taker arrives within the time lock period:
+  - User (merchant) can redeem the bond token themselves
+  - Bond has a default time lock of 7 days (configurable)
+  - Token can be redeemed with the configured cashu mint
+  - Redeeming converts the bond back to Bitcoin
+
+**Step 4b: Taker Arrives**
+- If a taker accepts the offer:
+  - The bond is immediately rejected/removed from the list
+  - Taker transfers fiat directly to the merchant
+  - Merchant receives fiat without needing the bond
+
+### Time Lock & Redemption
+
+- **Default Time Lock:** 7 days (configurable in settings)
+- **Bond Type:** Cashu token with p2pk time lock (NUT-11 specification)
+- **Redemption:** User/POS redeems token with configured cashu mint
+- **Fiat Transfer:** Happens directly between merchant and taker (off-chain)
+
+### Use Cases
+
+- **Instant Fiat:** Customer pays with Bitcoin, merchant gets fiat via peer payment
+- **Peer-to-peer:** No need for centralized fiat on-ramp services
+- **Time-Lock Protection:** Merchant is protected if taker doesn't arrive
+- **Auto-Convert:** If no taker, bond automatically converts to BTC
+
+### Configuration
+
+Required settings in Settings page:
+- **Lightning Address:** Your lightning@address (for OpenPleb)
+- **OpenPleb API Key:** For connecting to OpenPleb API
+- **Cashu Mint URL:** Your configured cashu mint for redemption
+- **Time Lock:** Bond expiration time (default: 7 days)
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
