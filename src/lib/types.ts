@@ -51,3 +51,56 @@ export interface Settings {
 // ========== Store Types ==========
 export interface ProductStore extends Product {}
 export interface TransactionStore extends Transaction {}
+
+// ========== OpenPleb Types ==========
+export type OfferStatus = 
+	| 'CREATED'
+	| 'INVOICE_CREATED'
+	| 'INVOICE_PAID'
+	| 'CLAIMED'
+	| 'RECEIPT_SUBMITTED'
+	| 'PAID_WITH_TOKEN'
+	| 'COMPLETED'
+	| 'EXPIRED'
+	| 'DISPUTED'
+	| 'RESOLVED'
+	| 'ERROR';
+
+export interface OpenPlebOffer {
+	id: number;
+	createdAt: number;
+	amount: number;
+	qrCode?: string;
+	conversionRate: number;
+	satsAmount: number;
+	status: OfferStatus;
+	pubkey: string;
+	invoice?: string;
+	validForS: number;
+	currency: string;
+	fiatProviderId?: number;
+	bondFlatRate: number;
+	bondPercentage: number;
+	bond?: number;
+	mintUrl?: string;
+}
+
+export interface OpenPlebSettings {
+	OPENPLEB_PLATFORM_FEE_PERCENTAGE: number;
+	OPENPLEB_PLATFORM_FEE_FLAT_RATE: number;
+	OPENPLEB_TAKER_FEE_PERCENTAGE: number;
+	OPENPLEB_TAKER_FEE_FLAT_RATE: number;
+	OPENPLEB_BOND_PERCENTAGE: number;
+	OPENPLEB_BOND_FLAT_RATE: number;
+	OPENPLEB_CURRENCY: string;
+	OPENPLEB_MAX_FIAT_AMOUNT: number;
+	OPENPLEB_MINT_URL: string;
+}
+
+export interface OpenPlebConfig {
+	apiKey: string;
+	apiUrl: string;
+	pubkey: string;
+	mintUrl: string;
+	enabled: boolean;
+}

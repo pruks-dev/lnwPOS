@@ -16,10 +16,25 @@
 			if (!token || isTokenExpired(token)) {
 				goto('/');
 			}
+			loadSettings();
 		}
 		// Load initial theme
 		theme.subscribe((t) => (selectedTheme = t));
 	});
+
+	function loadSettings() {
+		try {
+			const savedSettings = localStorage.getItem('lnwpos_settings');
+			if (savedSettings) {
+				const parsed = JSON.parse(savedSettings);
+				if (parsed.openPleb) {
+					openPlebSettings = { ...openPlebSettings, ...parsed.openPleb };
+				}
+			}
+		} catch (error) {
+			console.error('Failed to load settings:', error);
+		}
+	}
 
 	let settings = {
 		shopName: 'Shop A',
@@ -33,6 +48,12 @@
 		bondExpirationHours: 24,
 		platformFeePercentage: 1
 	};
+
+	let openPlebSettings = $state({
+		apiUrl: 'https://api.openpleb.com/api/v1',
+		pubkey: '',
+		enabled: false
+	});
 
 	let features = $state({
 		enableNotifications: true,
@@ -53,7 +74,8 @@
 
 	let selectedTheme = $state<Theme>('light');
 
-	let showSaveSuccess = false;
+	let showSaveSuccess = $state(false);
+	let isSaving = $state(false);
 	let isFetchingRates = false;
 	let lastFetchedRate = 0;
 	let lastFetchedTime = '';
@@ -79,10 +101,21 @@
 		}
 	}
 
-	function saveSettings() {
-		console.log('Saving settings:', { settings, bitcoinSettings, features });
-		showSaveSuccess = true;
-		setTimeout(() => (showSaveSuccess = false), 3000);
+	async function saveSettings() {
+		isSaving = true;
+		try {
+			const existingSettings = JSON.parse(localStorage.getItem('lnwpos_settings') || '{}');
+			localStorage.setItem('lnwpos_settings', JSON.stringify({
+				...existingSettings,
+				openPleb: openPlebSettings
+			}));
+			showSaveSuccess = true;
+			setTimeout(() => (showSaveSuccess = false), 3000);
+		} catch (error) {
+			console.error('Failed to save settings:', error);
+		} finally {
+			isSaving = false;
+		}
 	}
 
 
@@ -316,6 +349,65 @@
 				</div>
 			</div>
 
+			<!-- OpenPleb Settings -->
+			<div class="bg-white dark:bg-[#16213e] rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+				<div class="p-6 border-b border-gray-200 dark:border-gray-700">
+					<div class="flex items-center justify-between">
+						<div class="flex items-center gap-3">
+							<span class="text-2xl">🔶</span>
+							<h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+								OpenPleb Settings
+							</h3>
+						</div>
+						<button
+							on:click={() => (openPlebSettings.enabled = !openPlebSettings.enabled)}
+							class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors {openPlebSettings.enabled
+								? 'bg-orange-500'
+								: 'bg-gray-300 dark:bg-gray-600'}"
+						>
+							<span
+								class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform {openPlebSettings.enabled
+									? 'translate-x-6'
+									: 'translate-x-1'}"
+							></span>
+						</button>
+					</div>
+				</div>
+				<div class="p-6 space-y-4">
+					<div>
+						<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+							>API URL</label
+						>
+						<input
+							type="url"
+							bind:value={openPlebSettings.apiUrl}
+							disabled={!openPlebSettings.enabled}
+							class="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#1a1a2e] text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all {!openPlebSettings.enabled
+								? 'bg-gray-50 dark:bg-gray-800 cursor-not-allowed opacity-75'
+								: ''}"
+							placeholder="https://api.openpleb.com/api/v1"
+						/>
+					</div>
+					<div>
+						<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+							>Nostr Pubkey</label
+						>
+						<input
+							type="text"
+							bind:value={openPlebSettings.pubkey}
+							disabled={!openPlebSettings.enabled}
+							class="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#1a1a2e] text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all {!openPlebSettings.enabled
+								? 'bg-gray-50 dark:bg-gray-800 cursor-not-allowed opacity-75'
+								: ''}"
+							placeholder="npub..."
+						/>
+						<p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+							Your Nostr public key for OpenPleb
+						</p>
+					</div>
+				</div>
+			</div>
+
 			<!-- Features -->
 			<div class="bg-white dark:bg-[#16213e] rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
 				<div class="p-6 border-b border-gray-200 dark:border-gray-700">
@@ -402,24 +494,32 @@
 		</div>
 
 		<!-- Save Button -->
-		<!-- <div class="mt-8 flex justify-end">
+		<div class="mt-8 flex justify-end gap-4">
+			{#if showSaveSuccess}
+				<div class="flex items-center gap-2 text-green-600 dark:text-green-400 font-medium animate-fade-in">
+					<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+					</svg>
+					<span>Saved!</span>
+				</div>
+			{/if}
 			<button
 				on:click={saveSettings}
-				class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-8 rounded-lg transition-all hover:shadow-lg flex items-center gap-2"
+				disabled={isSaving}
+				class="bg-orange-500 hover:bg-orange-600 disabled:bg-orange-400 text-white font-bold py-3 px-8 rounded-lg transition-all hover:shadow-lg flex items-center gap-2"
 			>
-				<span>💾</span>
-				<span>Save Settings</span>
+				{#if isSaving}
+					<svg class="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+						<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+					</svg>
+					<span>Saving...</span>
+				{:else}
+					<span>💾</span>
+					<span>Save Settings</span>
+				{/if}
 			</button>
-		</div> -->
-
-		<!-- Success Message -->
-		{#if showSaveSuccess}
-			<div class="mt-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-4 rounded-lg animate-fade-in">
-				<p class="text-sm text-green-700 dark:text-green-300 text-center font-medium">
-					✅ Settings saved successfully!
-				</p>
-			</div>
-		{/if}
+		</div>
 
 		<!-- Logout & Data Management -->
 		<div class="mt-8 border-t border-gray-200 dark:border-gray-700 pt-8">
