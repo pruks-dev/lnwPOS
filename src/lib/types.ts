@@ -46,6 +46,8 @@ export interface Settings {
   cashuMint?: string
   currency?: 'sat' | 'btc'
   taxRate?: number // Percentage
+  btcToThbRate?: number
+  bondExpirationHours?: number
 }
 
 // ========== Store Types ==========
@@ -101,6 +103,7 @@ export interface OpenPlebConfig {
 	apiKey: string;
 	apiUrl: string;
 	pubkey: string;
+	privkeyEncrypted: string;
 	mintUrl: string;
 	enabled: boolean;
 }

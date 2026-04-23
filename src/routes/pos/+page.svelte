@@ -7,6 +7,7 @@
 	import type { Product, Transaction, TransactionItem } from '$lib/types';
 	import { createOpenPlebService, calculateSatsFromTHB } from '$lib/openpleb';
 	import type { OpenPlebService } from '$lib/openpleb';
+	import { createLightningInvoice, calculateSatsFromTHB as calcSats, decodeInvoiceAmount } from '$lib/lightning';
 	import QRCode from 'qrcode';
 	import type { OpenPlebOffer } from '$lib/types';
 
@@ -43,6 +44,10 @@
 				conversionRate = settings.conversionRate;
 			}
 
+			if (settings.lightningAddress) {
+				lightningAddress = settings.lightningAddress;
+			}
+
 			if (openPlebConfig.enabled && openPlebConfig.apiUrl) {
 				openPlebService = createOpenPlebService(openPlebConfig.apiUrl);
 				selectedFiatProviderId = 1;
@@ -61,8 +66,11 @@
 	let showPayment = $state(false);
 	let selectedChannel = $state<PaymentChannel>('cash');
 	let promptPayId = $state('0891234567');
+	let promptPayQRUrl = $state('');
+	let promptPayQRImage = $state('');
 
 	let openPlebOffer = $state<OpenPlebOffer | null>(null);
+	let openPlebSats = $state(0);
 	let isCreatingOffer = $state(false);
 	let isPaid = $state(false);
 	let invoiceState = $state<string | null>(null);
@@ -70,8 +78,11 @@
 	let copySuccess = $state(false);
 	let openPlebService: OpenPlebService | null = null;
 	let selectedFiatProviderId: number | null = null;
-
+	let lightningAddress = $state('');
 	let conversionRate = $state(2324117);
+	let isGeneratingInvoice = $state(false);
+	let lightningError = $state('');
+	let isGeneratingPromptPayQR = $state(false);
 
 	async function copyToClipboard(text: string) {
 		try {
@@ -98,6 +109,12 @@
 		lightning: { label: 'Lightning', emoji: '⚡', color: 'bg-yellow-500' },
 		openpleb: { label: 'OpenPleb', emoji: '🔶', color: 'bg-purple-500' }
 	};
+
+	$effect(() => {
+		if (selectedChannel === 'promptpay' && showPayment && promptPayId) {
+			generatePromptPayQR();
+		}
+	});
 
 	function addToCart(product: Product) {
 		console.log('addToCart called:', product);
@@ -128,16 +145,57 @@
 		invoiceAmount = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 	}
 
-	function generateLightningInvoice() {
-		const satoshis = calculateSatsFromTHB(invoiceAmount, conversionRate);
-		qrCode = `lnbc${satoshis}n1p3xnhl2pp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqszjq5rz5q6sve344q3s2a8lgvxh0y0vzv9xh6tgpmp2q6sve344q3s2a8lgvxh0y0vzv9xh6tgpmp2q6sve344q3s2a8lgvxh0y0vzv9xh6tgpmp2p3xnhl2p3xnhl2p3xnhl2p3xnhl2p3xnhl2`;
-		showPayment = true;
+	async function generateLightningInvoice() {
+		isGeneratingInvoice = true;
+		lightningError = '';
+		qrCode = '';
+		qrCodeImage = '';
+
+		try {
+			if (!lightningAddress) {
+				lightningError = 'Lightning address not configured. Please add it in Settings.';
+				showPayment = true;
+				isGeneratingInvoice = false;
+				return;
+			}
+
+			const satoshis = calcSats(invoiceAmount, conversionRate);
+			
+			if (satoshis < 1) {
+				lightningError = `Amount too small. Minimum is ${Math.ceil(conversionRate / 100000000)} THB`;
+				showPayment = true;
+				isGeneratingInvoice = false;
+				return;
+			}
+
+			const result = await createLightningInvoice(lightningAddress, satoshis);
+			qrCode = result.invoice;
+			qrCodeImage = await QRCode.toDataURL(qrCode, { width: 256, margin: 2 });
+			showPayment = true;
+		} catch (error) {
+			console.error('Failed to generate Lightning invoice:', error);
+			const message = error instanceof Error ? error.message : 'Failed to create invoice';
+			lightningError = message.length > 100 ? message.substring(0, 100) + '...' : message;
+			showPayment = true;
+		} finally {
+			isGeneratingInvoice = false;
+		}
+	}
+
+	async function generatePromptPayQR() {
+		if (!promptPayId) return;
+
+		isGeneratingPromptPayQR = true;
+		const url = `/api/promptpay/${promptPayId}?amount=${invoiceAmount}`;
+		promptPayQRUrl = `https://promptpay.io/${promptPayId}/${invoiceAmount}`;
+		promptPayQRImage = url;
 	}
 
 	async function createOpenPlebOffer() {
 		isCreatingOffer = true;
 		openPlebError = '';
 		openPlebOffer = null;
+		openPlebSats = 0;
 
 		try {
 			const settings = JSON.parse(localStorage.getItem('lnwpos_settings') || '{}');
@@ -182,6 +240,8 @@
 					if (invoice) {
 						qrCode = invoice;
 						qrCodeImage = await QRCode.toDataURL(qrCode, { width: 256, margin: 2 });
+						openPlebSats = decodeInvoiceAmount(invoice);
+						console.log('Satoshis decoded from invoice:', openPlebSats);
 						isCreated = true;
 					}
 				}
@@ -202,9 +262,10 @@
 					await new Promise(resolve => setTimeout(resolve, 3000));
 					const paidResult = await openPleb.checkPaidInvoice(offerId);
 					console.log('Paid check result:', paidResult);
-					if (paidResult.state == 'PAID' || paidResult == 'ISSUED') {
+					const state = (paidResult as any).state;
+					if (state === 'PAID' || state === 'ISSUED') {
 						isPaid = true;
-						invoiceState = paidResult.state || 'PAID';
+						invoiceState = state;
 					}
 					checkPaidAttempts++;
 				}
@@ -274,7 +335,11 @@
 		selectedChannel = 'cash';
 		qrCode = '';
 		qrCodeImage = '';
+		promptPayQRUrl = '';
+		promptPayQRImage = '';
+		isGeneratingPromptPayQR = false;
 		openPlebOffer = null;
+		openPlebSats = 0;
 		openPlebError = '';
 		isPaid = false;
 		invoiceState = null;
@@ -379,24 +444,46 @@
 									<div class="text-4xl mb-2">💳</div>
 									<p class="text-sm text-gray-600 dark:text-gray-400 mb-2">PromptPay ID</p>
 									<p class="text-lg font-mono font-bold text-gray-900 dark:text-gray-100 mb-2">{promptPayId}</p>
-									<div class="bg-white dark:bg-gray-800 p-2 rounded-lg inline-block">
-										<div class="w-32 h-32 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center">
-											<span class="text-xs text-gray-500">QR Code</span>
-										</div>
+									<p class="text-2xl font-bold text-blue-600 dark:text-blue-400 mb-3">฿{invoiceAmount}</p>
+									<div class="bg-white dark:bg-gray-800 p-2 rounded-lg inline-block relative">
+										{#if isGeneratingPromptPayQR}
+											<div class="absolute inset-0 bg-white/80 dark:bg-gray-800/80 rounded-lg flex items-center justify-center">
+												<div class="animate-spin rounded-full h-10 w-10 border-4 border-blue-500 border-t-transparent"></div>
+											</div>
+										{/if}
+										<img src={promptPayQRImage} alt="PromptPay QR" class="w-48 h-48 {!promptPayQRImage ? 'opacity-0' : ''}" on:load={() => isGeneratingPromptPayQR = false} />
 									</div>
 									<p class="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-2">Scan QR to pay</p>
 								</div>
 							{:else if selectedChannel === 'lightning'}
 								<div class="text-center">
-									<div class="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg mb-4">
-										<div class="text-4xl mb-2">⚡</div>
-										<p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Lightning Invoice</p>
-										<div class="bg-white dark:bg-gray-800 p-3 rounded-lg">
-											<div class="w-32 h-32 mx-auto bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center mb-2">
-												<span class="text-xs text-gray-500">QR</span>
-											</div>
+									{#if isGeneratingInvoice}
+										<div class="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg">
+											<div class="text-4xl mb-2">⚡</div>
+											<p class="text-sm text-gray-600 dark:text-gray-400">Generating Lightning invoice...</p>
+										</div>
+									{:else if lightningError}
+										<div class="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg text-center">
+											<div class="text-4xl mb-2">❌</div>
+											<p class="text-sm text-red-600 dark:text-red-400">{lightningError}</p>
+											<p class="text-xs text-gray-500 mt-2">Configure Lightning address in Settings</p>
+										</div>
+									{:else if qrCode}
+										<div class="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg mb-4">
+											<div class="text-4xl mb-2">⚡</div>
+											<p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Lightning Invoice</p>
+											<p class="text-lg font-bold text-yellow-600 dark:text-yellow-400 mb-2">
+												฿{invoiceAmount} ({calcSats(invoiceAmount, conversionRate).toLocaleString()} sats)
+											</p>
+											{#if qrCodeImage}
+												<img src={qrCodeImage} alt="Lightning QR" class="w-48 h-48 mx-auto mb-3" />
+											{:else}
+												<div class="w-48 h-48 mx-auto bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center mb-3">
+													<span class="text-xs text-gray-500">Generating...</span>
+												</div>
+											{/if}
 											<p class="text-xs font-mono text-gray-500 dark:text-gray-400 break-all flex items-center gap-2">
-												<span class="flex-1">{qrCode.slice(0, 40)}...</span>
+												<span class="flex-1 text-left">{qrCode.slice(0, 40)}...</span>
 												<button
 													on:click={() => copyToClipboard(qrCode)}
 													class="px-2 py-1 bg-orange-500 hover:bg-orange-600 text-white text-xs rounded"
@@ -404,14 +491,20 @@
 													{copySuccess ? 'Copied!' : 'Copy'}
 												</button>
 											</p>
+											<p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+												Scan QR or copy invoice to pay
+											</p>
 										</div>
-									</div>
+									{/if}
 								</div>
 							{:else if selectedChannel === 'openpleb'}
 								<div class="text-center">
 									{#if isCreatingOffer}
-										<div class="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg">
-											<div class="text-4xl mb-2">🔄</div>
+										<div class="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg text-center">
+											<div class="text-4xl mb-3">🔶</div>
+											<div class="flex justify-center items-center py-4">
+												<div class="animate-spin rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent"></div>
+											</div>
 											<p class="text-sm text-gray-600 dark:text-gray-400">Creating OpenPleb offer...</p>
 										</div>
 									{:else if openPlebError}
@@ -436,29 +529,28 @@
 												Offer ID: {openPlebOffer.id} | Status: {openPlebOffer.status}
 											</p>
 											<p class="text-lg font-bold text-purple-600 dark:text-purple-400 mb-2">
-												{openPlebOffer.satsAmount} sats
+												{openPlebSats} sats
 											</p>
 											{#if !isPaid}
-												<div class="bg-white dark:bg-gray-800 p-3 rounded-lg">
-													{#if qrCodeImage}
-														<img src={qrCodeImage} alt="QR Code" class="w-48 h-48 mx-auto mb-2" />
-													{:else}
-														<div class="w-32 h-32 mx-auto bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center mb-2">
-															<span class="text-xs text-gray-500">Generating...</span>
+												<div class="bg-white dark:bg-gray-800 p-3 rounded-lg relative">
+													{#if !qrCodeImage}
+														<div class="absolute inset-0 bg-white/80 dark:bg-gray-800/80 rounded-lg flex items-center justify-center">
+															<div class="animate-spin rounded-full h-10 w-10 border-4 border-purple-500 border-t-transparent"></div>
 														</div>
 													{/if}
-													<p class="text-xs font-mono text-gray-500 dark:text-gray-400 break-all flex items-center gap-2">
-														<span class="flex-1">{qrCode ? qrCode.slice(0, 40) + '...' : 'No invoice yet'}</span>
-														{#if qrCode}
-															<button
-																on:click={() => copyToClipboard(qrCode)}
-																class="px-2 py-1 bg-orange-500 hover:bg-orange-600 text-white text-xs rounded"
-															>
-																{copySuccess ? 'Copied!' : 'Copy'}
-															</button>
-														{/if}
-													</p>
+													<img src={qrCodeImage} alt="QR Code" class="w-48 h-48 mx-auto mb-2 {!qrCodeImage ? 'opacity-0' : ''}" />
 												</div>
+												<p class="text-xs font-mono text-gray-500 dark:text-gray-400 break-all flex items-center gap-2">
+													<span class="flex-1">{qrCode ? qrCode.slice(0, 40) + '...' : 'No invoice yet'}</span>
+													{#if qrCode}
+														<button
+															on:click={() => copyToClipboard(qrCode)}
+															class="px-2 py-1 bg-orange-500 hover:bg-orange-600 text-white text-xs rounded"
+														>
+															{copySuccess ? 'Copied!' : 'Copy'}
+														</button>
+													{/if}
+												</p>
 												<p class="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-2">
 													1. Show invoice to customer | 2. Customer pays you cash/PromptPay | 3. Wait for taker to complete trade
 												</p>

@@ -25,6 +25,9 @@
     "vite": "^7.3.1"
   },
   "dependencies": {
+    "@getalby/lightning-tools": "^8.1.0",
+    "ethers": "^6.16.0",
+    "noble-secp256k1": "^1.2.14",
     "qrcode": "^1.5.4"
   }
 }

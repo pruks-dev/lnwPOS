@@ -9,6 +9,36 @@
 	import { transactions } from '$lib/stores/storage.svelte';
 	import { clearStorageItem } from '$lib/storage';
 	import { initializeMockupData, mockProducts, mockTransactions } from '$lib/mockData';
+	import { generateKeypair, derivePubkey, encryptPrivkey, decryptPrivkey, isValidPrivkey, hexToNpub } from '$lib/openplebKeys';
+
+	const ENCRYPT_PASSWORD = 'password';
+
+	// Key Management Functions
+	function handleGenerateKeypair() {
+		try {
+			const { privkey, pubkey } = generateKeypair();
+			(openPlebSettings as any).pubkey = pubkey;
+			(openPlebSettings as any).privkeyEncrypted = encryptPrivkey(privkey, ENCRYPT_PASSWORD);
+			alert('Keypair generated! Your pubkey: ' + pubkey.slice(0, 20) + '...');
+		} catch (e) {
+			alert('Failed to generate keypair');
+		}
+	}
+
+	function handleImportPrivKey(privkey: string) {
+		if (!privkey || !isValidPrivkey(privkey)) {
+			alert('Invalid private key format');
+			return;
+		}
+		try {
+			const pubkey = derivePubkey(privkey);
+			(openPlebSettings as any).pubkey = pubkey;
+			(openPlebSettings as any).privkeyEncrypted = encryptPrivkey(privkey, ENCRYPT_PASSWORD);
+			alert('Private key imported! Pubkey: ' + pubkey.slice(0, 20) + '...');
+		} catch (e) {
+			alert('Failed to import private key');
+		}
+	}
 
 	onMount(() => {
 		if (browser) {
@@ -52,7 +82,19 @@
 	let openPlebSettings = $state({
 		apiUrl: 'https://api.openpleb.com/api/v1',
 		pubkey: '',
+		privkeyEncrypted: '',
+		mintUrl: '',
 		enabled: false
+	});
+
+	let pubkeyNpub = $state('');
+
+	$effect(() => {
+		if (openPlebSettings.pubkey) {
+			pubkeyNpub = hexToNpub(openPlebSettings.pubkey);
+		} else {
+			pubkeyNpub = '';
+		}
 	});
 
 	let features = $state({
@@ -82,6 +124,40 @@
 	let isInitializingMockup = false;
 	let mockupMessage = '';
 	let mockupMessageType = 'success';
+	let importPrivKeyInput = $state('');
+	let copyMessage = $state('');
+
+	function copyToClipboard(text: string) {
+		if (navigator.clipboard && navigator.clipboard.writeText) {
+			navigator.clipboard.writeText(text)
+				.then(() => {
+					copyMessage = 'Copied!';
+					setTimeout(() => (copyMessage = ''), 2000);
+				})
+				.catch(() => {
+					fallbackCopy(text);
+				});
+		} else {
+			fallbackCopy(text);
+		}
+	}
+
+	function fallbackCopy(text: string) {
+		const textarea = document.createElement('textarea');
+		textarea.value = text;
+		textarea.style.position = 'fixed';
+		textarea.style.left = '-9999px';
+		document.body.appendChild(textarea);
+		textarea.select();
+		try {
+			document.execCommand('copy');
+			copyMessage = 'Copied!';
+		} catch {
+			copyMessage = 'Failed to copy';
+		}
+		setTimeout(() => (copyMessage = ''), 2000);
+		document.body.removeChild(textarea);
+	}
 
 	async function fetchBTCRate() {
 		isFetchingRates = true;
@@ -392,18 +468,60 @@
 						<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
 							>Nostr Pubkey</label
 						>
-						<input
-							type="text"
-							bind:value={openPlebSettings.pubkey}
-							disabled={!openPlebSettings.enabled}
-							class="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#1a1a2e] text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all {!openPlebSettings.enabled
-								? 'bg-gray-50 dark:bg-gray-800 cursor-not-allowed opacity-75'
-								: ''}"
-							placeholder="npub..."
-						/>
+						<div class="flex gap-2">
+							<input
+								type="text"
+								value={pubkeyNpub}
+								disabled
+								class="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono text-sm"
+								placeholder="npub..."
+							/>
+							<button
+								on:click={() => pubkeyNpub && copyToClipboard(pubkeyNpub)}
+								disabled={!pubkeyNpub}
+								class="px-3 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 rounded-lg transition-all"
+								title="Copy npub"
+							>
+								📋
+							</button>
+						</div>
+						{#if copyMessage}
+							<p class="text-xs text-green-600 dark:text-green-400 mt-1">{copyMessage}</p>
+						{/if}
 						<p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
 							Your Nostr public key for OpenPleb
 						</p>
+					</div>
+					<!-- Key Management -->
+					<div class="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
+						<h4 class="text-sm font-medium text-gray-900 dark:text-gray-100 mb-3">
+							Key Management
+						</h4>
+						<div class="space-y-3">
+							<button
+								on:click={handleGenerateKeypair}
+								disabled={!openPlebSettings.enabled}
+								class="w-full bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white font-medium py-2 px-4 rounded-lg transition-all text-sm"
+							>
+								Generate New Keypair
+							</button>
+							<div class="flex gap-2">
+								<input
+									type="text"
+									bind:value={importPrivKeyInput}
+									disabled={!openPlebSettings.enabled}
+									class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#1a1a2e] text-gray-900 dark:text-gray-100 text-sm disabled:opacity-75"
+									placeholder="Import private key (hex)"
+								/>
+								<button
+									on:click={() => { handleImportPrivKey(importPrivKeyInput); importPrivKeyInput = ''; }}
+									disabled={!openPlebSettings.enabled || !importPrivKeyInput}
+									class="bg-purple-500 hover:bg-purple-600 disabled:bg-gray-400 text-white font-medium py-2 px-4 rounded-lg transition-all text-sm whitespace-nowrap"
+								>
+									Import
+								</button>
+							</div>
+						</div>
 					</div>
 				</div>
 			</div>

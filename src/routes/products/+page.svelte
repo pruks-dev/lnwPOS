@@ -3,7 +3,6 @@
 	import { browser } from '$app/environment';
 	import { goto } from '$app/navigation';
 	import { getToken, isTokenExpired, getNextProductId } from '$lib/storage';
-import { generateId } from '$lib/mockData';
 	import { products } from '$lib/stores/storage.svelte';
 	import type { Product } from '$lib/types';
 
@@ -24,7 +23,7 @@ import { generateId } from '$lib/mockData';
 
 	function addProduct() {
 		if (newProduct.name && newProduct.price > 0) {
-			const productId = generateId();
+			const productId = getNextProductId();
 			const product: Product = {
 				id: productId,
 				name: newProduct.name,
