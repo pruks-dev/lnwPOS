@@ -54,33 +54,55 @@
 
 	function loadSettings() {
 		try {
-			const savedSettings = localStorage.getItem('lnwpos_settings');
-			if (savedSettings) {
-				const parsed = JSON.parse(savedSettings);
-				if (parsed.openPleb) {
-					openPlebSettings = { ...openPlebSettings, ...parsed.openPleb };
-				}
+			const savedSettings = JSON.parse(localStorage.getItem('lnwpos_settings') || '{}');
+			if (savedSettings.openPleb) {
+				openPlebSettings = { ...openPlebSettings, ...savedSettings.openPleb };
+			}
+			if (savedSettings.promptPayId) {
+				settings.promptPayId = savedSettings.promptPayId;
+			}
+			if (savedSettings.lightningAddress) {
+				settings.lightningAddress = savedSettings.lightningAddress;
+			}
+			if (savedSettings.shopName) {
+				settings.shopName = savedSettings.shopName;
+			}
+			if (savedSettings.email) {
+				settings.email = savedSettings.email;
+			}
+			if (savedSettings.phone) {
+				settings.phone = savedSettings.phone;
+			}
+			if (savedSettings.btcToThbRate) {
+				bitcoinSettings.btcToThbRate = savedSettings.btcToThbRate;
+			}
+			if (savedSettings.bondExpirationHours) {
+				bitcoinSettings.bondExpirationHours = savedSettings.bondExpirationHours;
+			}
+			if (savedSettings.platformFeePercentage) {
+				bitcoinSettings.platformFeePercentage = savedSettings.platformFeePercentage;
 			}
 		} catch (error) {
 			console.error('Failed to load settings:', error);
 		}
 	}
 
-	let settings = {
+	let settings = $state({
 		shopName: 'Shop A',
 		email: 'shop@example.com',
 		phone: '0891234567',
-		promptPayId: '0891234567'
-	};
+		promptPayId: '0891234567',
+		lightningAddress: ''
+	});
 
-	let bitcoinSettings = {
+	let bitcoinSettings = $state({
 		btcToThbRate: 3450,
 		bondExpirationHours: 24,
 		platformFeePercentage: 1
-	};
+	});
 
 	let openPlebSettings = $state({
-		apiUrl: 'https://api.openpleb.com/api/v1',
+		apiUrl: 'https://openpleb.lnw.cash/api/v1',
 		pubkey: '',
 		privkeyEncrypted: '',
 		mintUrl: '',
@@ -119,11 +141,11 @@
 	let showSaveSuccess = $state(false);
 	let isSaving = $state(false);
 	let isFetchingRates = false;
-	let lastFetchedRate = 0;
-	let lastFetchedTime = '';
+	let lastFetchedRate = $state(0);
+	let lastFetchedTime = $state('');
 	let isInitializingMockup = false;
-	let mockupMessage = '';
-	let mockupMessageType = 'success';
+	let mockupMessage = $state('');
+	let mockupMessageType = $state('success');
 	let importPrivKeyInput = $state('');
 	let copyMessage = $state('');
 
@@ -183,6 +205,14 @@
 			const existingSettings = JSON.parse(localStorage.getItem('lnwpos_settings') || '{}');
 			localStorage.setItem('lnwpos_settings', JSON.stringify({
 				...existingSettings,
+				promptPayId: settings.promptPayId,
+				lightningAddress: settings.lightningAddress,
+				shopName: settings.shopName,
+				email: settings.email,
+				phone: settings.phone,
+				btcToThbRate: bitcoinSettings.btcToThbRate,
+				bondExpirationHours: bitcoinSettings.bondExpirationHours,
+				platformFeePercentage: bitcoinSettings.platformFeePercentage,
 				openPleb: openPlebSettings
 			}));
 			showSaveSuccess = true;
@@ -332,6 +362,20 @@
 							Your PromptPay ID for receiving payments
 						</p>
 					</div>
+					<div>
+						<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+							>Lightning Address</label
+						>
+						<input
+							type="text"
+							bind:value={settings.lightningAddress}
+							class="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#1a1a2e] text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all"
+							placeholder="lightning@address.com"
+						/>
+						<p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+							Your Lightning address for LNURL payments
+						</p>
+					</div>
 				</div>
 			</div>
 
@@ -461,7 +505,7 @@
 							class="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#1a1a2e] text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all {!openPlebSettings.enabled
 								? 'bg-gray-50 dark:bg-gray-800 cursor-not-allowed opacity-75'
 								: ''}"
-							placeholder="https://api.openpleb.com/api/v1"
+							placeholder="https://openpleb.lnw.cash/api/v1"
 						/>
 					</div>
 					<div>
